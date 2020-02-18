@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class SentimentClassifier(nn.Module):
-    def __init__(self, max_tokens,
+    def __init__(self, in_channels,
                  conv_num_kernels=[256] * 6,
                  conv_kernel_sizes=[7, 7, 3, 3, 3, 3],
                  pool_sizes=[3, 3, None, None, None, 3],
@@ -14,7 +14,7 @@ class SentimentClassifier(nn.Module):
         self.pools = nn.ModuleList([None] * len(conv_num_kernels))
         self.fcs = nn.ModuleList()
 
-        in_c = max_tokens
+        in_c = in_channels
         for i in range(len(conv_num_kernels)):
             out_c = conv_num_kernels[i]
             kernel_size = conv_kernel_sizes[i]
@@ -24,7 +24,8 @@ class SentimentClassifier(nn.Module):
 
             if pool_sizes[i]:
                 self.pools[i] = nn.MaxPool1d(pool_sizes[i])
-        in_feats = 768
+
+        in_feats = 256 * 2
         for fc_size in fc_sizes:
             self.fcs.append(nn.Linear(in_feats, fc_size))
             in_feats = fc_size

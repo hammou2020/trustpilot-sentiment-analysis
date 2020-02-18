@@ -16,39 +16,34 @@ import pandas as pd
 
 class TextDataset(Dataset):
     def __init__(self, data_path,
-                 max_tokens=140,
-                 all_chars='abcdefghijklmnopqrstuvwxyz!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~',
-                 strip_punctuations=False):
+                 seq_len=140,
+                 all_chars='abcdefghijklmnopqrstuvwxyz!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'):
         self.data = pd.read_csv(data_path, quotechar='"',
                                 usecols=["comment", "label"])
-        self.max_tokens = max_tokens
+        self.seq_len = seq_len
         self.all_chars = all_chars
-        self.strip_punctuations = strip_punctuations
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
         row = self.data.iloc[index]
-        s = preprocess_text(row['comment'], self.strip_punctuations)
-        return onehot_encode(s, self.max_tokens, self.all_chars), \
+        return to_feature_vector(row['comment'], self.all_chars, self.seq_len), \
             get_label(row['label'])
 
 
 class LazyTextDataset(Dataset):
     def __init__(self, metadata_path,
-                 max_tokens=140,
-                 all_chars='abcdefghijklmnopqrstuvwxyz!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~',
-                 strip_punctuations=False):
+                 seq_len=140,
+                 all_chars='abcdefghijklmnopqrstuvwxyz!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'):
         with open(metadata_path, 'r') as f:
             d = json.load(f)
         self.data_path = d['data_path']
         self.length = d['length']
         self.offset = d['offset']
 
-        self.max_tokens = max_tokens
+        self.seq_len = seq_len
         self.all_chars = all_chars
-        self.strip_punctuations = strip_punctuations
 
     def __len__(self):
         return self.length
@@ -61,11 +56,7 @@ class LazyTextDataset(Dataset):
             reader = csv.reader(buffer, quotechar='"')
             row = next(reader)
 #             print(f"Getting item took {time.time() - start}")
-            return self._parse_row(row)
-
-    def _parse_row(self, row):
-        s = preprocess_text(row[0], self.strip_punctuations)
-        return onehot_encode(s, self.max_tokens, self.all_chars), \
+        return to_feature_vector(row[0], self.all_chars, self.seq_len), \
             get_label(row[-1])
 
 
@@ -78,15 +69,17 @@ def get_label(label):
     return label_to_id[label]
 
 
-def preprocess_text(s, strip_punctuations):
+def to_feature_vector(sentence, all_chars, seq_len):
+    s = preprocess_text(sentence)
+    return onehot_encode(s, all_chars, seq_len)
+
+
+def preprocess_text(s):
     s = unicodeToAscii(s.lower())
-    # s = s.replace(" ", "")  # Remove spaces
-    if strip_punctuations:
-        s = s.translate(str.maketrans('', '', string.punctuation))
     return s
 
 
-def onehot_encode(s, max_tokens, all_chars):
+def onehot_encode(s, all_chars, seq_len):
     start = time.time()
 
     char_idxs = []
@@ -95,17 +88,18 @@ def onehot_encode(s, max_tokens, all_chars):
         if ch_idx > -1:
             char_idxs.append(ch_idx)
 
-    x = torch.zeros(max_tokens, len(all_chars))
-    x[torch.arange(min(len(char_idxs), max_tokens)),
-        char_idxs[:max_tokens]] = 1
+    x = torch.zeros(len(all_chars), seq_len)
+    x[char_idxs[:seq_len],
+      torch.arange(min(len(char_idxs), seq_len))] = 1
 #         print(f"One-hot encoding took {time.time()-start}")
     return x
 
 
 def onehot_decode(x, all_chars):
     assert len(x.shape) == 2
-    _, idxs = np.where(x == 1.)
-    return "".join([all_chars[i] for i in idxs])
+    char_idxs, t = np.where(x == 1.)
+    char_idxs = char_idxs[np.argsort(t)]
+    return "".join([all_chars[i] for i in char_idxs])
 
 
 def unicodeToAscii(s):
