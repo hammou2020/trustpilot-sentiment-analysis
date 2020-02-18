@@ -11,6 +11,29 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+import pandas as pd
+
+
+class TextDataset(Dataset):
+    def __init__(self, data_path,
+                 max_tokens=140,
+                 all_chars='abcdefghijklmnopqrstuvwxyz!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~',
+                 strip_punctuations=False):
+        self.data = pd.read_csv(data_path, quotechar='"',
+                                usecols=["comment", "label"])
+        self.max_tokens = max_tokens
+        self.all_chars = all_chars
+        self.strip_punctuations = strip_punctuations
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        row = self.data.iloc[index]
+        s = preprocess_text(row['comment'], self.strip_punctuations)
+        return onehot_encode(s, self.max_tokens, self.all_chars), \
+            get_label(row['label'])
+
 
 class LazyTextDataset(Dataset):
     def __init__(self, metadata_path,
@@ -43,19 +66,16 @@ class LazyTextDataset(Dataset):
     def _parse_row(self, row):
         s = preprocess_text(row[0], self.strip_punctuations)
         return onehot_encode(s, self.max_tokens, self.all_chars), \
-            get_label(row[1])
+            get_label(row[-1])
 
 
-def get_label(rating):
-    rating = int(rating)
-    if rating <= 2:  # Bad
-        return 0
-    elif rating == 3:  # Average
-        return 1
-    elif rating <= 5:  # Good
-        return 2
-    else:
-        raise ValueError(f"Rating {rating} is not in the range [1, 5]")
+def get_label(label):
+    label_to_id = {
+        "good": 0,
+        "average": 1,
+        "bad": 2,
+    }
+    return label_to_id[label]
 
 
 def preprocess_text(s, strip_punctuations):

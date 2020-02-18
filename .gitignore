@@ -157,5 +157,6 @@ dmypy.json
 .pytype/
 
 # My ignores
-.vscode
+.vscode/
 data/
+tensorboard_logs/
