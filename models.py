@@ -43,7 +43,7 @@ class SentimentClassifier(nn.Module):
 
         for i, fc in enumerate(self.fcs):
             x = fc(x)
-            if i != len(self.fcs):
+            if i != len(self.fcs) - 1:
                 x = F.relu(x)
                 x = self.dropout(x)
 #         x = F.softmax(x, dim=-1)
