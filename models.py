@@ -29,18 +29,23 @@ class SentimentClassifier(nn.Module):
         for fc_size in fc_sizes:
             self.fcs.append(nn.Linear(in_feats, fc_size))
             in_feats = fc_size
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         batch_size = x.shape[0]
         for i, conv in enumerate(self.conv1ds):
             x = conv(x)
+            x = F.relu(x)
             if self.pools[i]:
                 x = self.pools[i](x)
             # print(x.shape)
         x = x.reshape(batch_size, -1)
 
-        for fc in self.fcs:
+        for i, fc in enumerate(self.fcs):
             x = fc(x)
+            if i != len(self.fcs):
+                x = F.relu(x)
+                x = self.dropout(x)
 #         x = F.softmax(x, dim=-1)
 
         return x
