@@ -29,7 +29,7 @@ class TextDataset(Dataset):
     def __getitem__(self, index):
         row = self.data.iloc[index]
         return to_feature_vector(row['comment'], self.all_chars, self.seq_len), \
-            get_label(row['label'])
+            rating_to_id(row['label'])
 
 
 class LazyTextDataset(Dataset):
@@ -57,16 +57,21 @@ class LazyTextDataset(Dataset):
             row = next(reader)
 #             print(f"Getting item took {time.time() - start}")
         return to_feature_vector(row[0], self.all_chars, self.seq_len), \
-            get_label(row[-1])
+            rating_to_id(row[-1])
 
 
-def get_label(label):
-    label_to_id = {
+def id_to_rating(id):
+    d = {0: 'good', 1: 'average', 2: 'bad'}
+    return d[id]
+
+
+def rating_to_id(label):
+    d = {
         "good": 0,
         "average": 1,
         "bad": 2,
     }
-    return label_to_id[label]
+    return d[label]
 
 
 def to_feature_vector(sentence, all_chars, seq_len):
