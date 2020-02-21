@@ -4,6 +4,7 @@ import json
 import numpy as np
 import pandas as pd
 
+from flask import request
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -23,7 +24,7 @@ def get_random_company():
 PROMPT = "What do you think of {}?"
 company_df = pd.read_csv("../data/companies_forbes.csv",
                          usecols=["company_logo", "company_name", "company_website"])
-
+suggested_rating = None
 
 company_name, company_url, company_logo = get_random_company()
 
@@ -38,8 +39,11 @@ body = dbc.Container([
                    id="company_link",
                    href=company_url)
         ], style={"height": "100px"}),
-        html.H2(PROMPT.format(company_name),
-                id="prompt"),
+        html.H2([
+            "What do you think of ",
+            html.Span(company_name, id="company_name"),
+            "?"
+        ]),
         dbc.Textarea(id="text_input",
                      rows="5",
                      style={"width": "100%", "marginBottom": "5px"}),
@@ -70,6 +74,14 @@ body = dbc.Container([
 app.layout = html.Div([body])
 
 
+def score_to_rating(score):
+    conds = [
+        score < 20, score < 40, score < 60, score < 80, score < 100
+    ]
+    choices = [1, 2, 3, 4, 5]
+    return np.select(conds, choices)
+
+
 @app.callback(
     [
         Output('score_bar', 'value'),
@@ -98,25 +110,62 @@ def predict_sentiment(text, current_rating):
         color = "warning"
     else:
         color = "success"
-    conds = [
-        score < 20, score < 40, score < 60, score < 80, score < 100
-    ]
-    choices = [1, 2, 3, 4, 5]
-    rating = np.select(conds, choices)
+    rating = score_to_rating(score)
     return score, color, f"{score:.2f}%", rating, False
 
 
 @app.callback(
     [
-        Output('prompt', 'children'),
+        Output('company_name', 'children'),
         Output('company_link', 'href'),
         Output('company_logo', 'src'),
     ],
     [Input('change_button', 'n_clicks')],
 )
 def change_company(n_clicks):
-    name, url, logo = get_random_company()
-    return PROMPT.format(name), url, logo
+    if n_clicks is None:
+        raise PreventUpdate
+    print("change company callback invoked")
+    return get_random_company()
+
+
+@app.callback(
+    [
+        Output('change_button', 'n_clicks'),
+        Output('text_input', 'value')
+    ],
+    [
+        Input('submit_button', 'n_clicks')
+    ],
+    [
+        State('text_input', 'value'),
+        State('rating_slider', 'value'),
+        State('score_bar', 'value'),
+        State('company_name', 'children'),
+        State('change_button', 'n_clicks')
+    ]
+)
+def submit_review(n_clicks_submit, review, rating, score, company_name, n_clicks_change):
+    if n_clicks_submit is None:
+        raise PreventUpdate
+    print("submit callback invoked ")
+    API_ENDPOINT = "http://127.0.0.1:5000/review"
+
+    data = {
+        'review': review,
+        'rating': int(rating),
+        'suggested_rating': int(score_to_rating(score)),
+        'sentiment_score': float(score),
+        'brand': company_name,
+        'user_agent': request.headers.get('User-Agent'),
+        'ip_address': request.remote_addr,
+    }
+    r = requests.post(API_ENDPOINT, json=data)
+    if r.ok:
+        print("Review saved to db")
+    else:
+        print("Error saving review to db")
+    return (1, "") if n_clicks_change is None else (n_clicks_change + 1, "")
 
 
 if __name__ == '__main__':
