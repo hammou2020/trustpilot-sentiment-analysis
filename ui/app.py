@@ -1,6 +1,7 @@
 import requests
 import json
 
+import numpy as np
 import pandas as pd
 
 import dash
@@ -57,6 +58,7 @@ body = dbc.Container([
                        marks={i: str(i) for i in range(1, 6)})
         ], style={"width": "100%"}),
         dbc.Button("Submit review", color="primary",
+                   id="submit_button",
                    style={"marginBottom": "5px", "width": "100%"}),
         html.Br(),
         dbc.Button("Review another brand", color="secondary",
@@ -70,35 +72,38 @@ app.layout = html.Div([body])
 
 @app.callback(
     [
-        Output(component_id='score_bar', component_property='value'),
-        Output(component_id='score_bar', component_property='color'),
-        Output(component_id='score_bar_label', component_property='children'),
-        Output(component_id='rating_slider', component_property='value')
+        Output('score_bar', 'value'),
+        Output('score_bar', 'color'),
+        Output('score_bar_label', 'children'),
+        Output('rating_slider', 'value'),
+        Output('submit_button', 'disabled'),
     ],
     [
-        Input(component_id='text_input', component_property='value'),
+        Input('text_input', 'value'),
     ],
     [
-        State(component_id='rating_slider', component_property='value')
+        State('rating_slider', 'value')
     ]
 )
 def predict_sentiment(text, current_rating):
     if text is None or text.strip() == "":
-        return 0, None, "", current_rating
+        return 0, None, "", current_rating, True
     API_ENDPOINT = "http://127.0.0.1:5000/predict"
     data = {"review": text}
     r = requests.post(API_ENDPOINT, json=data)
     score = r.json()['score'] * 100
     if score < 100/3:
         color = "danger"
-        rating = 1
     elif score < 200/3:
         color = "warning"
-        rating = 3
     else:
         color = "success"
-        rating = 5
-    return score, color, f"{score:.2f}%", rating
+    conds = [
+        score < 20, score < 40, score < 60, score < 80, score < 100
+    ]
+    choices = [1, 2, 3, 4, 5]
+    rating = np.select(conds, choices)
+    return score, color, f"{score:.2f}%", rating, False
 
 
 @app.callback(
