@@ -10,12 +10,18 @@ from ..ml.data import to_feature_vector, id_to_rating
 app = Flask(__name__)
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
-seq_len = 150
+seq_len = 250
 all_chars = 'abcdefghijklmnopqrstuvwxyz0123456789!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ '
 
-weights_path = "../checkpoints/epoch_1.pt"
+weights_path = "../checkpoints/trained_weights.pth"
 model = SentimentClassifier(feature_dim=len(all_chars),
-                            seq_len=seq_len)
+                            seq_len=seq_len,
+                            conv_num_kernels=[128, 256, 512, 1024, 512, 256],
+                            conv_kernel_sizes=[7, 7, 5, 5, 5, 3],
+                            pool_sizes=[3, 3, None, None, None, 3],
+                            batchnorm=True)
+# model = SentimentClassifier(feature_dim=len(all_chars),
+#                             seq_len=seq_len)
 if torch.cuda.is_available():
     weights = torch.load(weights_path)
 else:
