@@ -14,6 +14,18 @@ from dash.exceptions import PreventUpdate
 
 import config
 
+external_stylesheets = [
+    "https://use.fontawesome.com/releases/v5.0.7/css/all.css",
+    'https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css',
+    'https://fonts.googleapis.com/css?family=Roboto&display=swap'
+]
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = app.server
+
+API_ENDPOINT = config.API_URL
+company_df = pd.read_csv("companies_forbes.csv",
+                         usecols=["company_logo", "company_name", "company_website"])
+
 
 def get_random_company():
     row = company_df.sample(1)
@@ -23,15 +35,8 @@ def get_random_company():
     return name, url, logo
 
 
-API_ENDPOINT = config.API_URL
-company_df = pd.read_csv("companies_forbes.csv",
-                         usecols=["company_logo", "company_name", "company_website"])
-suggested_rating = None
-
 company_name, company_url, company_logo = get_random_company()
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-server = app.server
 
 body = dbc.Container([
     dbc.Col([
@@ -53,9 +58,10 @@ body = dbc.Container([
         html.H5("Sentiment analysis"),
         dbc.Progress(html.Span(id='score_bar_label',
                                style={"color": "black",
-                                      "marginLeft": "5px",
-                                      "overflow": "visible",
-                                      "position": "relative"}),
+                                    #   "marginLeft": "5px",
+                                    #   "overflow": "visible",
+                                    #   "position": "relative"
+                                      }),
                      id="score_bar", value=0,
                      animated=False,
                      style={"textAlign": "center"}),
@@ -122,53 +128,47 @@ def predict_sentiment(text, current_rating):
         Output('company_name', 'children'),
         Output('company_link', 'href'),
         Output('company_logo', 'src'),
-    ],
-    [Input('change_button', 'n_clicks')],
-)
-def change_company(n_clicks):
-    if n_clicks is None:
-        raise PreventUpdate
-    print("change company callback invoked")
-    return get_random_company()
-
-
-@app.callback(
-    [
-        Output('change_button', 'n_clicks'),
         Output('text_input', 'value')
     ],
     [
-        Input('submit_button', 'n_clicks')
+        Input('submit_button', 'n_clicks'),
+        Input('change_button', 'n_clicks')
     ],
     [
         State('text_input', 'value'),
         State('rating_slider', 'value'),
         State('score_bar', 'value'),
-        State('company_name', 'children'),
-        State('change_button', 'n_clicks')
+        State('company_name', 'children')
     ]
 )
-def submit_review(n_clicks_submit, review, rating, score, company_name, n_clicks_change):
-    if n_clicks_submit is None:
-        raise PreventUpdate
-    print("submit callback invoked ")
-    api = os.path.join(API_ENDPOINT, "review")
+def submit_review(submit_button, change_button,
+                  review, rating, score, company_name):
+    ctx = dash.callback_context
 
-    data = {
-        'review': review,
-        'rating': int(rating),
-        'suggested_rating': int(score_to_rating(score)),
-        'sentiment_score': float(score),
-        'brand': company_name,
-        'user_agent': request.headers.get('User-Agent'),
-        'ip_address': request.remote_addr,
-    }
-    r = requests.post(api, json=data)
-    if r.ok:
-        print("Review saved to db")
+    if not ctx.triggered:
+        raise PreventUpdate
     else:
-        print("Error saving review to db")
-    return (1, "") if n_clicks_change is None else (n_clicks_change + 1, "")
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    if button_id == "submit_button":
+        api = os.path.join(API_ENDPOINT, "review")
+
+        data = {
+            'review': review,
+            'rating': int(rating),
+            'suggested_rating': int(score_to_rating(score)),
+            'sentiment_score': float(score),
+            'brand': company_name,
+            'user_agent': request.headers.get('User-Agent'),
+            'ip_address': request.remote_addr,
+        }
+        r = requests.post(api, json=data)
+        if r.ok:
+            print("Review saved to db")
+        else:
+            print("Error saving review to db")
+
+    return (*get_random_company(), "")
 
 
 if __name__ == '__main__':
