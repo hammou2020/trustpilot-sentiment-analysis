@@ -1,0 +1,10 @@
+--find-links https://download.pytorch.org/whl/torch_stable.html 
+torch==1.4.0+cpu
+torchvision==0.5.0+cpu
+Flask
+peewee
+tqdm
+psycopg2-binary
+gunicorn
+wget
+pandas

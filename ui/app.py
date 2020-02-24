@@ -1,9 +1,9 @@
-import requests
-import json
+import os
 
 import numpy as np
 import pandas as pd
 
+import requests
 from flask import request
 import dash
 import dash_core_components as dcc
@@ -11,6 +11,8 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
+
+import config
 
 
 def get_random_company():
@@ -21,14 +23,15 @@ def get_random_company():
     return name, url, logo
 
 
-PROMPT = "What do you think of {}?"
-company_df = pd.read_csv("../data/companies_forbes.csv",
+API_ENDPOINT = config.API_URL
+company_df = pd.read_csv("companies_forbes.csv",
                          usecols=["company_logo", "company_name", "company_website"])
 suggested_rating = None
 
 company_name, company_url, company_logo = get_random_company()
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 
 body = dbc.Container([
     dbc.Col([
@@ -100,9 +103,9 @@ def score_to_rating(score):
 def predict_sentiment(text, current_rating):
     if text is None or text.strip() == "":
         return 0, None, "", current_rating, True
-    API_ENDPOINT = "http://127.0.0.1:5000/predict"
+    api = os.path.join(API_ENDPOINT, "predict")
     data = {"review": text}
-    r = requests.post(API_ENDPOINT, json=data)
+    r = requests.post(api, json=data)
     score = r.json()['score'] * 100
     if score < 100/3:
         color = "danger"
@@ -149,7 +152,7 @@ def submit_review(n_clicks_submit, review, rating, score, company_name, n_clicks
     if n_clicks_submit is None:
         raise PreventUpdate
     print("submit callback invoked ")
-    API_ENDPOINT = "http://127.0.0.1:5000/review"
+    api = os.path.join(API_ENDPOINT, "review")
 
     data = {
         'review': review,
@@ -160,7 +163,7 @@ def submit_review(n_clicks_submit, review, rating, score, company_name, n_clicks
         'user_agent': request.headers.get('User-Agent'),
         'ip_address': request.remote_addr,
     }
-    r = requests.post(API_ENDPOINT, json=data)
+    r = requests.post(api, json=data)
     if r.ok:
         print("Review saved to db")
     else:
@@ -169,4 +172,4 @@ def submit_review(n_clicks_submit, review, rating, score, company_name, n_clicks
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=config.DEBUG, host=config.HOST)

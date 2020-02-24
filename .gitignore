@@ -161,3 +161,4 @@ dmypy.json
 data/*
 !data/companies_forbes.csv
 tensorboard_logs/
+api/checkpoints

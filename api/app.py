@@ -1,19 +1,34 @@
+from pathlib import Path
+
 from flask import Flask, jsonify, request
+import wget
 
 import torch
 import torch.nn.functional as F
 
-from . import db
-from ..ml.models import SentimentClassifier
-from ..ml.data import to_feature_vector, id_to_rating
+import db
+import config
+from ml.models import SentimentClassifier
+from ml.data import to_feature_vector, id_to_rating
 
 app = Flask(__name__)
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
+weights_dir = Path("checkpoints/")
+weights_name = "trained_weights.pth"
+weights_path = weights_dir / weights_name
+if not weights_dir.exists():
+    weights_dir.mkdir(exist_ok=True)
+    print(f'downloading the trained weights {weights_name}')
+    wget.download(
+        "https://docs.google.com/uc?export=download&id=1-3uk42eUBZz_2u7_iFqdJAUJ1AdVT-aS",
+        out=str(weights_path),
+    )
+else:
+    print(f'model already saved to {weights_path}')
+
 seq_len = 250
 all_chars = 'abcdefghijklmnopqrstuvwxyz0123456789!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ '
-
-weights_path = "../checkpoints/trained_weights.pth"
 model = SentimentClassifier(feature_dim=len(all_chars),
                             seq_len=seq_len,
                             conv_num_kernels=[128, 256, 512, 1024, 512, 256],
@@ -89,3 +104,7 @@ def predict_wrapper(review):
         scores = F.softmax(model(x), dim=1).squeeze()
         conf, label_id = torch.max(scores, 0)
     return id_to_rating(label_id.item()), conf.item()
+
+
+if __name__ == "__main__":
+    app.run(debug=config.DEBUG, host=config.HOST)

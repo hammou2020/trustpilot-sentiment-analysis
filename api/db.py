@@ -1,5 +1,5 @@
 import peewee as pw
-from . import config
+import config
 
 
 db = pw.PostgresqlDatabase(config.POSTGRES_DB,
